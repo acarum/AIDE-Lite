@@ -1,0 +1,26 @@
+// ============================================================================
+// AIDE Lite - AI-powered IDE extension for Mendix Studio Pro
+// Copyright (c) 2025-2026 Neel Desai / Golden Earth Software Consulting Inc.
+// Configuration model — settings persisted to config.json
+// ============================================================================
+
+using System.Text.Json.Serialization;
+
+namespace AideLite.Models;
+
+public class AideLiteConfig
+{
+    // API key stored as DPAPI-encrypted base64 — no plaintext property exists by design
+    [JsonPropertyName("encryptedApiKey")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? EncryptedApiKey { get; set; }
+
+    [JsonPropertyName("selectedModel")]
+    public string SelectedModel { get; set; } = "claude-sonnet-4-5-20250929";
+
+    [JsonPropertyName("contextDepth")]
+    public string ContextDepth { get; set; } = "full";
+
+    [JsonPropertyName("maxTokens")]
+    public int MaxTokens { get; set; } = 8192;
+}

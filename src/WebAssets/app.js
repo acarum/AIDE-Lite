@@ -1,0 +1,558 @@
+// ============================================================================
+// AIDE Lite - AI-powered IDE extension for Mendix Studio Pro
+// Copyright (c) 2025-2026 Neel Desai / Golden Earth Software Consulting Inc.
+// Chat UI logic — message handling, streaming, markdown rendering, and WebView bridge
+// ============================================================================
+
+// Follows Mendix WebView PostMessage protocol:
+//   C# sends:  PostMessage("type", data)
+//   JS gets:   event.data = { message: "type", data: ... }
+//   JS sends:  postMessage({ message: "type", data: ... })
+//   C# gets:   e.Message = "type", e.Data = ...
+
+(function () {
+    'use strict';
+
+    // --- State ---
+    var isStreaming = false;
+    var streamBuffer = '';
+    var streamElement = null;
+    var cumulativeInputTokens = 0;
+    var cumulativeOutputTokens = 0;
+
+    // --- DOM References ---
+    var chatArea = document.getElementById('chatArea');
+    var chatInput = document.getElementById('chatInput');
+    var sendBtn = document.getElementById('sendBtn');
+    var refreshBtn = document.getElementById('refreshBtn');
+    var newChatBtn = document.getElementById('newChatBtn');
+    var settingsBtn = document.getElementById('settingsBtn');
+    var settingsModal = document.getElementById('settingsModal');
+    var saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    var cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
+    var toolActivity = document.getElementById('toolActivity');
+    var toolLabel = document.getElementById('toolLabel');
+    var stopBtn = document.getElementById('stopBtn');
+    var contextDot = document.getElementById('contextDot');
+    var contextText = document.getElementById('contextText');
+    var modelBadge = document.getElementById('modelBadge');
+    var welcomeScreen = document.getElementById('welcomeScreen');
+    var processingBar = document.getElementById('processingBar');
+    var processingLabel = document.getElementById('processingLabel');
+
+    // --- WebView Bridge (C# <-> JS messaging) ---
+    function sendToBackend(type, payload) {
+        if (window.chrome && window.chrome.webview) {
+            window.chrome.webview.postMessage({ message: type, data: payload || {} });
+        } else {
+            console.log('WebView bridge not available. Message:', type, payload);
+        }
+    }
+
+    // --- Message Dispatch (C# PostMessage -> JS handler routing) ---
+    function handleMessage(event) {
+        // Mendix PostMessage delivers: event.data = { message: "type", data: ... }
+        var envelope = event.data;
+        if (!envelope) return;
+
+        var type = envelope.message;
+        var data = envelope.data;
+
+        if (type) {
+            handleBackendMessage(type, data);
+        }
+    }
+
+    function handleBackendMessage(type, data) {
+        switch (type) {
+            case 'chat_streaming':
+                handleStreamChunk(data);
+                break;
+            case 'chat_response':
+                // Legacy: kept for backward compatibility but no longer sent by C#
+                handleChatResponse(data);
+                break;
+            case 'tool_start':
+                handleToolStart(data);
+                break;
+            case 'tool_result':
+                handleToolResult(data);
+                break;
+            case 'context_loaded':
+                handleContextLoaded(data);
+                break;
+            case 'microflow_created':
+                handleMicroflowCreated(data);
+                break;
+            case 'model_changed':
+                handleModelChanged(data);
+                break;
+            case 'token_usage':
+                handleTokenUsage(data);
+                break;
+            case 'error':
+                handleError(data);
+                break;
+            case 'load_settings':
+                handleLoadSettings(data);
+                break;
+            case 'settings_saved':
+                handleSettingsSaved(data);
+                break;
+        }
+    }
+
+    // --- Chat Message Handling ---
+    function sendMessage() {
+        var text = chatInput.value.trim();
+        if (!text || isStreaming) return;
+
+        hideWelcome();
+        appendMessage('user', text);
+        chatInput.value = '';
+        chatInput.style.height = 'auto';
+
+        // Show stop button and processing bar immediately when user sends message
+        isStreaming = true;
+        sendBtn.disabled = true;
+        sendBtn.classList.add('hidden');
+        stopBtn.classList.remove('hidden');
+        showProcessingBar('Thinking...');
+
+        sendToBackend('chat', { message: text });
+    }
+
+    function appendMessage(role, content) {
+        var div = document.createElement('div');
+        div.className = 'message ' + role;
+        if (role === 'assistant') {
+            div.innerHTML = renderMarkdown(content);
+        } else {
+            div.textContent = content;
+        }
+        chatArea.appendChild(div);
+        scrollToBottom();
+        return div;
+    }
+
+    function hideWelcome() {
+        if (welcomeScreen) {
+            welcomeScreen.style.display = 'none';
+        }
+    }
+
+    function scrollToBottom() {
+        chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    // --- Streaming & Processing UI ---
+    function handleStreamChunk(data) {
+        if (!data) return;
+
+        if (!streamElement) {
+            // First chunk — create the streaming message element
+            // (isStreaming and button swap already done in sendMessage)
+            isStreaming = true;
+            hideWelcome();
+            streamBuffer = '';
+            streamElement = document.createElement('div');
+            streamElement.className = 'message assistant streaming';
+            chatArea.appendChild(streamElement);
+            sendBtn.classList.add('hidden');
+            stopBtn.classList.remove('hidden');
+        }
+
+        if (data.token) {
+            streamBuffer += data.token;
+            streamElement.innerHTML = renderMarkdown(streamBuffer);
+            scrollToBottom();
+            updateProcessingLabel('Generating response...');
+        }
+
+        if (data.done) {
+            endStream();
+        }
+    }
+
+    function handleChatResponse(data) {
+        if (isStreaming) {
+            endStream();
+        }
+        // Handle both string data (BYOLLM pattern) and object data
+        var content = '';
+        if (typeof data === 'string') {
+            content = data;
+        } else if (data && data.content) {
+            content = data.content;
+        }
+        if (content) {
+            hideWelcome();
+            appendMessage('assistant', content);
+        }
+        sendBtn.disabled = false;
+    }
+
+    function endStream() {
+        if (streamElement) {
+            streamElement.classList.remove('streaming');
+            streamElement.innerHTML = renderMarkdown(streamBuffer);
+        }
+        isStreaming = false;
+        streamBuffer = '';
+        streamElement = null;
+        sendBtn.disabled = false;
+        sendBtn.classList.remove('hidden');
+        stopBtn.classList.add('hidden');
+        hideToolActivity();
+        hideProcessingBar();
+    }
+
+    // --- Processing Bar ---
+    function showProcessingBar(label) {
+        processingLabel.textContent = label || 'Processing...';
+        processingBar.classList.remove('hidden');
+    }
+
+    function updateProcessingLabel(label) {
+        processingLabel.textContent = label;
+    }
+
+    function hideProcessingBar() {
+        processingBar.classList.add('hidden');
+    }
+
+    // --- Tool Activity ---
+    function handleToolStart(data) {
+        if (!data) return;
+        var name = data.toolName || 'tool';
+        var label = formatToolName(name);
+        toolLabel.textContent = label;
+        toolActivity.classList.remove('hidden');
+        showProcessingBar(label);
+    }
+
+    function handleToolResult(data) {
+        hideToolActivity();
+    }
+
+    function hideToolActivity() {
+        toolActivity.classList.add('hidden');
+    }
+
+    function formatToolName(name) {
+        var labels = {
+            'get_modules': 'Reading modules...',
+            'get_entities': 'Reading entities...',
+            'get_entity_details': 'Reading entity details...',
+            'get_microflows': 'Reading microflows...',
+            'get_microflow_details': 'Reading microflow details...',
+            'get_associations': 'Reading associations...',
+            'get_enumerations': 'Reading enumerations...',
+            'get_pages': 'Reading pages...',
+            'search_model': 'Searching model...',
+            'create_microflow': 'Creating microflow...',
+            'add_activities_to_microflow': 'Adding activities...',
+            'replace_microflow': 'Replacing microflow...',
+            'rename_microflow': 'Renaming microflow...',
+            'edit_microflow_activity': 'Editing activity...'
+        };
+        return labels[name] || ('Running ' + name + '...');
+    }
+
+    // --- Context ---
+    function handleContextLoaded(data) {
+        if (!data) return;
+        contextDot.className = 'status-dot online';
+        contextText.textContent = data.summary || 'Context loaded';
+    }
+
+    // --- Microflow Created ---
+    function handleMicroflowCreated(data) {
+        if (!data) return;
+        var div = document.createElement('div');
+        div.className = 'success-msg';
+        div.textContent = 'Microflow "' + (data.name || '') + '" created successfully. Press F4 to refresh.';
+        chatArea.appendChild(div);
+        scrollToBottom();
+    }
+
+    // --- Model Changed (prompt user to refresh context) ---
+    function handleModelChanged(data) {
+        contextDot.className = 'status-dot stale';
+        contextText.textContent = 'Context outdated — click \u21BB to refresh';
+    }
+
+    // --- Token Usage ---
+    function handleTokenUsage(data) {
+        if (!data) return;
+        var inputTokens = data.inputTokens || 0;
+        var outputTokens = data.outputTokens || 0;
+        cumulativeInputTokens += inputTokens;
+        cumulativeOutputTokens += outputTokens;
+
+        var total = inputTokens + outputTokens;
+        var parts = [
+            '<span class="token-label">Tokens:</span>',
+            '<span class="token-in">' + formatTokens(inputTokens) + ' in</span>',
+            '<span class="token-out">' + formatTokens(outputTokens) + ' out</span>',
+            '<span class="token-total">' + formatTokens(total) + ' total</span>'
+        ];
+
+        var div = document.createElement('div');
+        div.className = 'token-usage';
+        div.innerHTML = parts.join(' · ');
+        chatArea.appendChild(div);
+        scrollToBottom();
+
+        updateTokenBadge();
+    }
+
+    function formatTokens(n) {
+        if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+        return '' + n;
+    }
+
+    function updateTokenBadge() {
+        var badge = document.getElementById('tokenBadge');
+        if (!badge) return;
+        var total = cumulativeInputTokens + cumulativeOutputTokens;
+        if (total > 0) {
+            badge.textContent = formatTokens(total) + ' tokens';
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+
+    // --- Error ---
+    function handleError(data) {
+        if (!data) return;
+        endStream();
+        var div = document.createElement('div');
+        div.className = 'error-msg';
+        div.textContent = data.message || 'An error occurred.';
+        chatArea.appendChild(div);
+        scrollToBottom();
+        sendBtn.disabled = false;
+    }
+
+    // --- Settings ---
+    function openSettings() {
+        settingsModal.classList.remove('hidden');
+        sendToBackend('get_settings');
+    }
+
+    function closeSettings() {
+        settingsModal.classList.add('hidden');
+    }
+
+    function handleLoadSettings(data) {
+        if (!data) return;
+        if (data.selectedModel) {
+            document.getElementById('modelSelect').value = data.selectedModel;
+            updateModelBadge(data.selectedModel);
+        }
+        if (data.contextDepth) document.getElementById('contextDepthSelect').value = data.contextDepth;
+        if (data.maxTokens) document.getElementById('maxTokensInput').value = data.maxTokens;
+        if (data.hasKey) document.getElementById('apiKeyInput').placeholder = '********** (key saved)';
+    }
+
+    function handleSettingsSaved(data) {
+        closeSettings();
+    }
+
+    function saveSettings() {
+        var apiKey = document.getElementById('apiKeyInput').value;
+        var model = document.getElementById('modelSelect').value;
+        var depth = document.getElementById('contextDepthSelect').value;
+        var tokens = parseInt(document.getElementById('maxTokensInput').value) || 8192;
+
+        sendToBackend('save_settings', {
+            apiKey: apiKey,
+            selectedModel: model,
+            contextDepth: depth,
+            maxTokens: tokens
+        });
+
+        updateModelBadge(model);
+    }
+
+    function updateModelBadge(model) {
+        var labels = {
+            'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
+            'claude-opus-4-6': 'Opus 4.6',
+            'claude-haiku-4-5-20251001': 'Haiku 4.5'
+        };
+        modelBadge.textContent = labels[model] || model;
+    }
+
+    // --- Markdown Rendering ---
+    // Lightweight regex-based Markdown-to-HTML converter. Handles code blocks,
+    // inline formatting, headers, lists, tables, blockquotes, and links.
+    // Inline code content is HTML-escaped to prevent XSS.
+    function renderMarkdown(text) {
+        if (!text) return '';
+        var html = text;
+
+        // Code blocks (```lang\n...\n```)
+        html = html.replace(/```(\w*)\n([\s\S]*?)```/g, function (m, lang, code) {
+            return '<pre><code class="language-' + (lang || '') + '">' + escapeHtml(code) + '</code></pre>';
+        });
+
+        // Inline code (escape HTML inside backticks to prevent XSS)
+        html = html.replace(/`([^`]+)`/g, function (m, code) {
+            return '<code>' + escapeHtml(code) + '</code>';
+        });
+
+        // Bold
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+        // Italic
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+        // Headers
+        html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+        html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+        html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+        // Blockquotes
+        html = html.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
+
+        // Links [text](url)
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+        // Unordered lists
+        html = html.replace(/^- (.+)$/gm, '<li class="ul-item">$1</li>');
+        html = html.replace(/((?:<li class="ul-item">[\s\S]*?<\/li>\s*)+)/g, '<ul>$1</ul>');
+        html = html.replace(/<\/ul>\s*<ul>/g, '');
+
+        // Ordered lists
+        html = html.replace(/^\d+\. (.+)$/gm, '<li class="ol-item">$1</li>');
+        html = html.replace(/((?:<li class="ol-item">[\s\S]*?<\/li>\s*)+)/g, '<ol>$1</ol>');
+        html = html.replace(/<\/ol>\s*<ol>/g, '');
+
+        // Tables: rows before the |---|---| separator are headers (<th>), rows after are data (<td>).
+        // tableIsHeader flips to false when the separator line is encountered.
+        var tableIsHeader = true;
+        html = html.replace(/^\|(.+)\|$/gm, function (match, content) {
+            var cells = content.split('|').map(function (c) { return c.trim(); });
+            if (cells.every(function (c) { return /^[-:]+$/.test(c); })) {
+                tableIsHeader = false;
+                return '<!-- table separator -->';
+            }
+            var tag = tableIsHeader ? 'th' : 'td';
+            var row = cells.map(function (c) { return '<' + tag + '>' + c + '</' + tag + '>'; }).join('');
+            return '<tr>' + row + '</tr>';
+        });
+        html = html.replace(/((<tr>[\s\S]*?<\/tr>\s*)+)/g, function (m) {
+            tableIsHeader = true; // Reset for next table
+            return '<table>' + m + '</table>';
+        });
+        html = html.replace(/<!-- table separator -->\s*/g, '');
+
+        // Paragraphs: wrap text in <p> tags using double-newline as a delimiter,
+        // then strip <p> wrappers that accidentally surround block-level elements
+        // (headers, pre, lists, tables, blockquotes).
+        html = html.replace(/\n\n/g, '</p><p>');
+        html = '<p>' + html + '</p>';
+        html = html.replace(/<p>\s*<\/p>/g, '');
+        html = html.replace(/<p>\s*(<h[1-3]>)/g, '$1');
+        html = html.replace(/(<\/h[1-3]>)\s*<\/p>/g, '$1');
+        html = html.replace(/<p>\s*(<pre>)/g, '$1');
+        html = html.replace(/(<\/pre>)\s*<\/p>/g, '$1');
+        html = html.replace(/<p>\s*(<ul>)/g, '$1');
+        html = html.replace(/(<\/ul>)\s*<\/p>/g, '$1');
+        html = html.replace(/<p>\s*(<ol>)/g, '$1');
+        html = html.replace(/(<\/ol>)\s*<\/p>/g, '$1');
+        html = html.replace(/<p>\s*(<table>)/g, '$1');
+        html = html.replace(/(<\/table>)\s*<\/p>/g, '$1');
+        html = html.replace(/<p>\s*(<blockquote>)/g, '$1');
+        html = html.replace(/(<\/blockquote>)\s*<\/p>/g, '$1');
+
+        // Line breaks
+        html = html.replace(/\n/g, '<br>');
+
+        return html;
+    }
+
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // --- Event Listeners & UI Wiring ---
+    sendBtn.addEventListener('click', sendMessage);
+
+    stopBtn.addEventListener('click', function () {
+        sendToBackend('cancel');
+        endStream();
+    });
+
+    chatInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    // Auto-resize textarea
+    chatInput.addEventListener('input', function () {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    refreshBtn.addEventListener('click', function () {
+        contextDot.className = 'status-dot loading';
+        contextText.textContent = 'Loading context...';
+        sendToBackend('get_context');
+    });
+
+    newChatBtn.addEventListener('click', function () {
+        // Cancel any in-progress streaming and reset state
+        if (isStreaming) {
+            sendToBackend('cancel');
+            endStream();
+        }
+        chatArea.innerHTML = '';
+        if (welcomeScreen) {
+            chatArea.appendChild(welcomeScreen);
+            welcomeScreen.style.display = '';
+        }
+        sendBtn.disabled = false;
+        cumulativeInputTokens = 0;
+        cumulativeOutputTokens = 0;
+        updateTokenBadge();
+        sendToBackend('new_chat');
+    });
+
+    settingsBtn.addEventListener('click', openSettings);
+    saveSettingsBtn.addEventListener('click', saveSettings);
+    cancelSettingsBtn.addEventListener('click', closeSettings);
+
+    // Close modal on overlay click
+    document.querySelector('.modal-overlay')?.addEventListener('click', closeSettings);
+
+    // Quick actions
+    document.querySelectorAll('.quick-action').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var prompt = this.getAttribute('data-prompt');
+            if (prompt) {
+                chatInput.value = prompt;
+                sendMessage();
+            }
+        });
+    });
+
+    // --- Initialize WebView Message Bridge ---
+    // IMPORTANT: Per Mendix WebView API, the JS side MUST post 'MessageListenerRegistered'
+    // after attaching its message listener. Without this handshake, all C# PostMessage
+    // calls are silently queued and never delivered to JS.
+    if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.addEventListener('message', handleMessage);
+        sendToBackend('MessageListenerRegistered');
+    }
+
+    // Request settings on load (will be delivered after MessageListenerRegistered flushes the queue)
+    sendToBackend('get_settings');
+})();
