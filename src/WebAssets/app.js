@@ -20,6 +20,7 @@
     var cumulativeInputTokens = 0;
     var cumulativeOutputTokens = 0;
     var currentTheme = 'light';
+    var chatHistory = [];
 
     // --- DOM References ---
     var chatArea = document.getElementById('chatArea');
@@ -42,6 +43,12 @@
     var processingLabel = document.getElementById('processingLabel');
     var themeToggleBtn = document.getElementById('themeToggleBtn');
     var themeSelect = document.getElementById('themeSelect');
+    var exportBtn = document.getElementById('exportBtn');
+    var exportModal = document.getElementById('exportModal');
+    var exportDownloadBtn = document.getElementById('exportDownloadBtn');
+    var exportCancelBtn = document.getElementById('exportCancelBtn');
+    var exportOverlay = document.getElementById('exportOverlay');
+    var exportToolActivity = document.getElementById('exportToolActivity');
 
     // --- WebView Bridge (C# <-> JS messaging) ---
     function sendToBackend(type, payload) {
@@ -112,6 +119,7 @@
 
         hideWelcome();
         appendMessage('user', text);
+        chatHistory.push({ type: 'user', content: text });
         chatInput.value = '';
         chatInput.style.height = 'auto';
 
@@ -191,6 +199,7 @@
         if (content) {
             hideWelcome();
             appendMessage('assistant', content);
+            chatHistory.push({ type: 'assistant', content: content });
         }
         sendBtn.disabled = false;
     }
@@ -199,6 +208,9 @@
         if (streamElement) {
             streamElement.classList.remove('streaming');
             streamElement.innerHTML = renderMarkdown(streamBuffer);
+        }
+        if (streamBuffer) {
+            chatHistory.push({ type: 'assistant', content: streamBuffer });
         }
         isStreaming = false;
         streamBuffer = '';
@@ -232,10 +244,14 @@
         toolLabel.textContent = label;
         toolActivity.classList.remove('hidden');
         showProcessingBar(label);
+        chatHistory.push({ type: 'tool_start', content: label, toolName: name });
     }
 
     function handleToolResult(data) {
         hideToolActivity();
+        if (data && data.summary) {
+            chatHistory.push({ type: 'tool_result', content: data.summary, toolName: data.toolName });
+        }
     }
 
     function hideToolActivity() {
@@ -272,11 +288,13 @@
     // --- Microflow Created ---
     function handleMicroflowCreated(data) {
         if (!data) return;
+        var msg = 'Microflow "' + (data.name || '') + '" created successfully. Press F4 to refresh.';
         var div = document.createElement('div');
         div.className = 'success-msg';
-        div.textContent = 'Microflow "' + (data.name || '') + '" created successfully. Press F4 to refresh.';
+        div.textContent = msg;
         chatArea.appendChild(div);
         scrollToBottom();
+        chatHistory.push({ type: 'success', content: msg });
     }
 
     // --- Model Changed (prompt user to refresh context) ---
@@ -308,6 +326,7 @@
         scrollToBottom();
 
         updateTokenBadge();
+        chatHistory.push({ type: 'tokens', content: 'Tokens: ' + formatTokens(inputTokens) + ' in, ' + formatTokens(outputTokens) + ' out, ' + formatTokens(total) + ' total' });
     }
 
     function formatTokens(n) {
@@ -331,12 +350,14 @@
     function handleError(data) {
         if (!data) return;
         endStream();
+        var msg = data.message || 'An error occurred.';
         var div = document.createElement('div');
         div.className = 'error-msg';
-        div.textContent = data.message || 'An error occurred.';
+        div.textContent = msg;
         chatArea.appendChild(div);
         scrollToBottom();
         sendBtn.disabled = false;
+        chatHistory.push({ type: 'error', content: msg });
     }
 
     // --- Settings ---
@@ -404,6 +425,85 @@
         if (themeSelect) {
             themeSelect.value = currentTheme;
         }
+    }
+
+    // --- Export Chat ---
+    function openExport() {
+        if (chatHistory.length === 0) return;
+        exportModal.classList.remove('hidden');
+    }
+
+    function closeExport() {
+        exportModal.classList.add('hidden');
+    }
+
+    function exportChat() {
+        var includeTools = exportToolActivity.checked;
+        var modelName = modelBadge.textContent || 'Claude';
+        var now = new Date();
+        var dateStr = now.toISOString().slice(0, 10);
+        var timeStr = now.toTimeString().slice(0, 5);
+
+        var lines = [];
+        lines.push('# AIDE Lite Chat Export');
+        lines.push('**Date:** ' + dateStr + ' ' + timeStr + ' | **Model:** ' + modelName);
+        lines.push('');
+        lines.push('---');
+        lines.push('');
+
+        for (var i = 0; i < chatHistory.length; i++) {
+            var entry = chatHistory[i];
+            switch (entry.type) {
+                case 'user':
+                    lines.push('## User');
+                    lines.push(entry.content);
+                    lines.push('');
+                    break;
+                case 'assistant':
+                    lines.push('## Assistant');
+                    lines.push(entry.content);
+                    lines.push('');
+                    break;
+                case 'tool_start':
+                    if (includeTools) {
+                        lines.push('> **Tool:** ' + entry.content);
+                    }
+                    break;
+                case 'tool_result':
+                    if (includeTools) {
+                        lines.push('> **Result:** ' + entry.content);
+                        lines.push('');
+                    }
+                    break;
+                case 'success':
+                    lines.push('> **' + entry.content + '**');
+                    lines.push('');
+                    break;
+                case 'error':
+                    lines.push('> **Error:** ' + entry.content);
+                    lines.push('');
+                    break;
+                case 'tokens':
+                    lines.push('*' + entry.content + '*');
+                    lines.push('');
+                    break;
+            }
+        }
+
+        lines.push('---');
+        lines.push('*Exported from AIDE Lite v1.1.0*');
+
+        var markdown = lines.join('\n');
+        var blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'aide-lite-chat-' + dateStr + '.md';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        closeExport();
     }
 
     // --- Markdown Rendering ---
@@ -542,6 +642,7 @@
         sendBtn.disabled = false;
         cumulativeInputTokens = 0;
         cumulativeOutputTokens = 0;
+        chatHistory = [];
         updateTokenBadge();
         sendToBackend('new_chat');
     });
@@ -567,8 +668,14 @@
         });
     }
 
-    // Close modal on overlay click
-    document.querySelector('.modal-overlay')?.addEventListener('click', closeSettings);
+    // Export chat
+    if (exportBtn) exportBtn.addEventListener('click', openExport);
+    if (exportDownloadBtn) exportDownloadBtn.addEventListener('click', exportChat);
+    if (exportCancelBtn) exportCancelBtn.addEventListener('click', closeExport);
+    if (exportOverlay) exportOverlay.addEventListener('click', closeExport);
+
+    // Close settings modal on overlay click
+    document.querySelector('#settingsModal .modal-overlay')?.addEventListener('click', closeSettings);
 
     // Quick actions
     document.querySelectorAll('.quick-action').forEach(function (btn) {

@@ -519,3 +519,24 @@ body.dark .error-msg { color: #fca5a5; }
     align-self: flex-start;
 }
 body.dark .success-msg { color: #86efac; }
+
+/* === Export Modal === */
+.export-description {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+}
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-label);
+    cursor: pointer;
+}
+.checkbox-label input[type="checkbox"] {
+    width: auto;
+    accent-color: #7c3aed;
+    cursor: pointer;
+}

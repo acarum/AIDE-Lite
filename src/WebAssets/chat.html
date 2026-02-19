@@ -9,7 +9,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AIDE Lite</title>
-    <link rel="stylesheet" href="styles.css?v=4">
+    <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
     <div class="app-container">
@@ -22,6 +22,7 @@
                 <span class="token-badge hidden" id="tokenBadge"></span>
             </div>
             <div class="header-actions">
+                <button id="exportBtn" class="icon-btn" title="Export Chat">&#x2B07;</button>
                 <button id="themeToggleBtn" class="icon-btn" title="Toggle Dark Mode">&#x1F319;</button>
                 <button id="refreshBtn" class="icon-btn" title="Refresh App Context">&#x21bb;</button>
                 <button id="newChatBtn" class="icon-btn" title="New Chat">&#x2795;</button>
@@ -119,6 +120,26 @@
         </div>
     </div>
 
-    <script src="app.js?v=4"></script>
+    <!-- Export Modal -->
+    <div id="exportModal" class="modal hidden">
+        <div class="modal-overlay" id="exportOverlay"></div>
+        <div class="modal-dialog">
+            <h3>Export Chat</h3>
+            <p class="export-description">Download this conversation as a Markdown file.</p>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="exportToolActivity">
+                    Include tool activity
+                </label>
+                <small>Shows tool calls like "Reading entities..." between messages.</small>
+            </div>
+            <div class="modal-actions">
+                <button id="exportDownloadBtn" class="primary-btn">Download .md</button>
+                <button id="exportCancelBtn" class="secondary-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js?v=5"></script>
 </body>
 </html>
