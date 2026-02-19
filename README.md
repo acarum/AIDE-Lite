@@ -31,8 +31,8 @@ Built for **Mendix Studio Pro 10.24 LTS**. Uses the Claude API by Anthropic.
 ### 1. Clone & Build
 
 ```powershell
-git clone https://github.com/AIDELite/aide-lite.git
-cd aide-lite
+git clone https://github.com/Golden-Earth-Inc/AIDE-Lite.git
+cd AIDE-Lite
 dotnet build src -c Release
 ```
 
