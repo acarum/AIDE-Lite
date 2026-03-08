@@ -43,7 +43,7 @@ public class SettingsDialogViewModel : WebViewModalDialogViewModel
         _dialogService = dialogService;
         _webServerBaseUrl = webServerBaseUrl;
         Width = 420;
-        Height = 460;
+        Height = 860;
     }
 
     public override void InitWebView(IWebView webView)
@@ -92,9 +92,14 @@ public class SettingsDialogViewModel : WebViewModalDialogViewModel
         SendToWebView("load_settings", new
         {
             hasKey = _configService.HasApiKey(),
+            apiProvider = config.ApiProvider,
             selectedModel = config.SelectedModel,
             contextDepth = config.ContextDepth,
             maxTokens = config.MaxTokens,
+            retryMaxAttempts = config.RetryMaxAttempts,
+            retryDelaySeconds = config.RetryDelaySeconds,
+            maxToolRounds = config.MaxToolRounds,
+            promptCachingEnabled = config.PromptCachingEnabled,
             theme = config.Theme
         });
     }
@@ -102,6 +107,7 @@ public class SettingsDialogViewModel : WebViewModalDialogViewModel
     private void HandleSaveSettings(JsonObject? data)
     {
         var apiKey = data?["apiKey"]?.GetValue<string>();
+        var apiProvider = data?["apiProvider"]?.GetValue<string>();
         var model = data?["selectedModel"]?.GetValue<string>();
         var depth = data?["contextDepth"]?.GetValue<string>();
         var theme = data?["theme"]?.GetValue<string>();
@@ -110,8 +116,28 @@ public class SettingsDialogViewModel : WebViewModalDialogViewModel
         {
             tokens = data["maxTokens"]!.GetValue<int>();
         }
+        int? retryMax = null;
+        if (data?["retryMaxAttempts"] != null)
+        {
+            retryMax = data["retryMaxAttempts"]!.GetValue<int>();
+        }
+        int? retryDelay = null;
+        if (data?["retryDelaySeconds"] != null)
+        {
+            retryDelay = data["retryDelaySeconds"]!.GetValue<int>();
+        }
+        int? maxToolRounds = null;
+        if (data?["maxToolRounds"] != null)
+        {
+            maxToolRounds = data["maxToolRounds"]!.GetValue<int>();
+        }
+        bool? promptCaching = null;
+        if (data?["promptCachingEnabled"] != null)
+        {
+            promptCaching = data["promptCachingEnabled"]!.GetValue<bool>();
+        }
 
-        _configService.SaveConfig(apiKey, model, depth, tokens, theme);
+        _configService.SaveConfig(apiKey, apiProvider, model, depth, tokens, retryMax, retryDelay, maxToolRounds, promptCaching, theme);
         SendToWebView("settings_saved", new { success = true });
         _dialogService.CloseDialog(this);
     }

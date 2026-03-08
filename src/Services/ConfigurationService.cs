@@ -66,10 +66,20 @@ public class ConfigurationService
 
     private static readonly HashSet<string> AllowedModels = new(StringComparer.Ordinal)
     {
+        // Claude models
         "claude-sonnet-4-5-20250929",
         "claude-sonnet-4-6",
         "claude-opus-4-6",
-        "claude-haiku-4-5-20251001"
+        "claude-haiku-4-5-20251001",
+        // OpenAI models
+        "glm-4.7",
+        "glm-5"
+    };
+
+    private static readonly HashSet<string> AllowedApiProviders = new(StringComparer.Ordinal)
+    {
+        "claude",
+        "openai"
     };
 
     private static readonly HashSet<string> AllowedContextDepths = new(StringComparer.Ordinal)
@@ -79,12 +89,15 @@ public class ConfigurationService
 
     private const int MaxTokensCeiling = 64000;
 
-    public void SaveConfig(string? apiKey, string? selectedModel, string? contextDepth, int? maxTokens, string? theme = null, int? retryMaxAttempts = null, int? retryDelaySeconds = null, int? maxToolRounds = null, bool? promptCachingEnabled = null, bool? autoRefreshContext = null, bool? autoLoadLastConversation = null)
+    public void SaveConfig(string? apiKey, string? apiProvider, string? selectedModel, string? contextDepth, int? maxTokens, int? retryMaxAttempts = null, int? retryDelaySeconds = null, int? maxToolRounds = null, bool? promptCachingEnabled = null, string? theme = null, bool? autoRefreshContext = null, bool? autoLoadLastConversation = null)
     {
         if (!string.IsNullOrWhiteSpace(apiKey))
         {
             _cachedConfig.EncryptedApiKey = EncryptApiKey(apiKey);
         }
+
+        if (!string.IsNullOrEmpty(apiProvider) && AllowedApiProviders.Contains(apiProvider))
+            _cachedConfig.ApiProvider = apiProvider;
 
         if (!string.IsNullOrEmpty(selectedModel) && AllowedModels.Contains(selectedModel))
             _cachedConfig.SelectedModel = selectedModel;

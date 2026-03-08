@@ -48,7 +48,7 @@ public class ChatController
     private IModel? _lastInitializedModel;
 
     // Services initialized lazily when model is available
-    private ClaudeApiService? _claudeApi;
+    private IAIApiService? _providerApi;
     private ConversationManager? _conversation;
     private bool _isChatProcessing;
     private PromptBuilder? _promptBuilder;
@@ -186,7 +186,7 @@ public class ChatController
     /// </summary>
     public void FullCleanup()
     {
-        _claudeApi?.Cancel();
+        _providerApi?.Cancel();
         _isChatProcessing = false;
         _conversation?.Clear();
         _cachedContext = null;
@@ -289,9 +289,14 @@ public class ChatController
     {
         var model = Model;
 
-        if (_claudeApi != null && model == _lastInitializedModel) return;
+        if (_providerApi != null && model == _lastInitializedModel) return;
 
-        _claudeApi = new ClaudeApiService(_httpClientService, _configService, _logService);
+        // Select API service based on configured provider
+        var config = _configService.GetConfig();
+        _providerApi = config.ApiProvider == "openai"
+            ? new OpenAiApiService(_httpClientService, _configService, _logService)
+            : new ClaudeApiService(_httpClientService, _configService, _logService);
+
         _conversation ??= new ConversationManager();
         _promptBuilder = new PromptBuilder();
         _historyService ??= new ConversationHistoryService(_logService);
@@ -533,7 +538,7 @@ public class ChatController
             List<Dictionary<string, object>>? tools = isAskMode
                 ? _toolRegistry?.BuildToolDefinitions(includeWriteTools: false, withCacheControl: cachingEnabled)
                 : _toolRegistry?.BuildToolDefinitions(withCacheControl: cachingEnabled);
-            DiagLog($"[4/6] Sending to Claude API (mode: {mode}, messages: {messages.Count}, tools: {tools?.Count ?? 0}, context: {(_cachedContext != null ? "loaded" : "none")}, caching: {cachingEnabled})");
+            DiagLog($"[4/6] Sending to LLM API (provider: {config.ApiProvider}, mode: {mode}, messages: {messages.Count}, tools: {tools?.Count ?? 0}, context: {(_cachedContext != null ? "loaded" : "none")}, caching: {cachingEnabled})");
 
             var maxToolRounds = config.MaxToolRounds;
             const int maxWriteOpsPerTurn = 5;
@@ -550,7 +555,7 @@ public class ChatController
             {
                 DiagLog($"[5/6] API call round {round + 1} (tools: {tools?.Count ?? 0})...");
 
-                var response = await _claudeApi!.SendStreamingRequestAsync(
+                var response = await _providerApi!.SendStreamingRequestAsync(
                     systemPrompt,
                     messages,
                     tools,
@@ -780,6 +785,7 @@ public class ChatController
         SendToWebView("load_settings", new
         {
             hasKey = _configService.HasApiKey(),
+            apiProvider = config.ApiProvider,
             selectedModel = config.SelectedModel,
             contextDepth = config.ContextDepth,
             maxTokens = config.MaxTokens,
@@ -803,6 +809,7 @@ public class ChatController
         _lastSettingsSave = DateTime.UtcNow;
 
         var apiKey = data?["apiKey"]?.GetValue<string>();
+        var apiProvider = data?["apiProvider"]?.GetValue<string>();
         var model = data?["selectedModel"]?.GetValue<string>();
         var depth = data?["contextDepth"]?.GetValue<string>();
         var theme = data?["theme"]?.GetValue<string>();
@@ -828,13 +835,13 @@ public class ChatController
         if (data?["autoLoadLastConversation"] != null)
             autoLoadLastConversation = data["autoLoadLastConversation"]!.GetValue<bool>();
 
-        _configService.SaveConfig(apiKey, model, depth, tokens, theme, retryMaxAttempts, retryDelaySeconds, maxToolRounds, promptCachingEnabled, autoRefreshContext, autoLoadLastConversation);
+        _configService.SaveConfig(apiKey, apiProvider, model, depth, tokens, retryMaxAttempts, retryDelaySeconds, maxToolRounds, promptCachingEnabled, theme, autoRefreshContext, autoLoadLastConversation);
         SendToWebView("settings_saved", new { success = true });
     }
 
     private void HandleNewChat()
     {
-        _claudeApi?.Cancel();
+        _providerApi?.Cancel();
         _isChatProcessing = false;
         _conversation?.Clear();
         _currentConversationId = null;
@@ -845,7 +852,7 @@ public class ChatController
 
     private void HandleCancel()
     {
-        _claudeApi?.Cancel();
+        _providerApi?.Cancel();
         _logService.Info("AIDE Lite: Request cancelled");
     }
 
@@ -863,7 +870,7 @@ public class ChatController
 
         if (_isChatProcessing)
         {
-            _claudeApi?.Cancel();
+            _providerApi?.Cancel();
             _isChatProcessing = false;
         }
 

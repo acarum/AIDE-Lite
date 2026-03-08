@@ -1352,3 +1352,12 @@ body.dark .doc-ref-enumeration:hover {
     padding: 2px 12px 6px;
     flex-shrink: 0;
 }
+
+/* === Settings Page - Model Provider Groups === */
+#modelSelect optgroup {
+    display: block;
+}
+#modelSelect optgroup[style*="display: none"] {
+    display: none;
+}
+

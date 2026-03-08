@@ -15,6 +15,9 @@ public class AideLiteConfig
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? EncryptedApiKey { get; set; }
 
+    [JsonPropertyName("apiProvider")]
+    public string ApiProvider { get; set; } = "claude";
+
     [JsonPropertyName("selectedModel")]
     public string SelectedModel { get; set; } = "claude-sonnet-4-5-20250929";
 

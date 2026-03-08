@@ -21,6 +21,10 @@
         var data = envelope.data;
 
         if (type === 'load_settings' && data) {
+            if (data.apiProvider) {
+                document.getElementById('apiProviderSelect').value = data.apiProvider;
+                updateProviderUI(data.apiProvider);
+            }
             if (data.selectedModel) document.getElementById('modelSelect').value = data.selectedModel;
             if (data.contextDepth) document.getElementById('contextDepthSelect').value = data.contextDepth;
             if (data.maxTokens) document.getElementById('maxTokensInput').value = data.maxTokens;
@@ -40,8 +44,49 @@
         }
     }
 
+    function updateProviderUI(provider) {
+        var apiKeyLabel = document.getElementById('apiKeyLabel');
+        var apiKeyInput = document.getElementById('apiKeyInput');
+        var modelSelect = document.getElementById('modelSelect');
+        var claudeModels = document.getElementById('claudeModels');
+        var openaiModels = document.getElementById('openaiModels');
+
+        if (provider === 'openai') {
+            apiKeyLabel.textContent = 'OpenAI API Key';
+            if (apiKeyInput.placeholder === 'sk-ant-api03-...') {
+                apiKeyInput.placeholder = 'sk-...';
+            }
+            // Show only OpenAI models
+            claudeModels.style.display = 'none';
+            openaiModels.style.display = 'block';
+            // Select first OpenAI model if current is Claude
+            var currentModel = modelSelect.value;
+            if (currentModel.startsWith('claude-')) {
+                modelSelect.value = 'gpt-4o';
+            }
+        } else {
+            apiKeyLabel.textContent = 'Claude API Key';
+            if (apiKeyInput.placeholder === 'sk-...') {
+                apiKeyInput.placeholder = 'sk-ant-api03-...';
+            }
+            // Show only Claude models
+            claudeModels.style.display = 'block';
+            openaiModels.style.display = 'none';
+            // Select first Claude model if current is OpenAI
+            var currentModel = modelSelect.value;
+            if (currentModel.startsWith('gpt-')) {
+                modelSelect.value = 'claude-sonnet-4-5-20250929';
+            }
+        }
+    }
+
+    document.getElementById('apiProviderSelect').addEventListener('change', function () {
+        updateProviderUI(this.value);
+    });
+
     document.getElementById('saveSettingsBtn').addEventListener('click', function () {
         sendToBackend('save_settings', {
+            apiProvider: document.getElementById('apiProviderSelect').value,
             apiKey: document.getElementById('apiKeyInput').value,
             selectedModel: document.getElementById('modelSelect').value,
             contextDepth: document.getElementById('contextDepthSelect').value,

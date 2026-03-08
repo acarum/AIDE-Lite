@@ -15,7 +15,7 @@ using Mendix.StudioPro.ExtensionsAPI.Services;
 namespace AideLite.Services;
 
 [SupportedOSPlatform("windows")]
-public class ClaudeApiService
+public class ClaudeApiService : IAIApiService
 {
     private readonly IHttpClientService _httpClientService;
     private readonly ConfigurationService _configService;
