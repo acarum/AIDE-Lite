@@ -72,14 +72,21 @@ public class ConfigurationService
         "claude-opus-4-6",
         "claude-haiku-4-5-20251001",
         // OpenAI models
-        "glm-4.7",
-        "glm-5"
+        "gpt-4o",
+        "gpt-4-turbo",
+        "gpt-4",
+        "gpt-3.5-turbo",
+        // GitHub Copilot models
+        "gpt-4o-copilot",
+        "gpt-4-copilot",
+        "claude-3.5-sonnet-copilot"
     };
 
     private static readonly HashSet<string> AllowedApiProviders = new(StringComparer.Ordinal)
     {
         "claude",
-        "openai"
+        "openai",
+        "github"
     };
 
     private static readonly HashSet<string> AllowedContextDepths = new(StringComparer.Ordinal)

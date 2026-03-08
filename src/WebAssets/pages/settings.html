@@ -18,12 +18,13 @@
             <select id="apiProviderSelect">
                 <option value="claude">Anthropic Claude</option>
                 <option value="openai">OpenAI</option>
+                <option value="github">GitHub Copilot (Use existing license)</option>
             </select>
         </div>
         <div class="form-group" id="apiKeyGroup">
             <label for="apiKeyInput" id="apiKeyLabel">API Key</label>
             <input type="password" id="apiKeyInput" placeholder="sk-...">
-            <small>Stored locally with encryption. Never shared.</small>
+            <small id="apiKeyHint">Stored locally with encryption. Never shared.</small>
         </div>
         <div class="form-group">
             <label for="modelSelect">Model</label>
@@ -34,7 +35,15 @@
                     <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (Fastest)</option>
                 </optgroup>
                 <optgroup label="OpenAI" id="openaiModels">
-                    <option value="glm-4.7">glm-4.7 (Recommended)</option>
+                    <option value="gpt-4o">GPT-4o (Recommended)</option>
+                    <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                    <option value="gpt-4">GPT-4</option>
+                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                </optgroup>
+                <optgroup label="GitHub Copilot" id="githubModels">
+                    <option value="gpt-4o-copilot">GPT-4o (via Copilot)</option>
+                    <option value="gpt-4-copilot">GPT-4 (via Copilot)</option>
+                    <option value="claude-3.5-sonnet-copilot">Claude 3.5 Sonnet (via Copilot)</option>
                 </optgroup>
             </select>
         </div>

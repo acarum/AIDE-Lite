@@ -293,9 +293,12 @@ public class ChatController
 
         // Select API service based on configured provider
         var config = _configService.GetConfig();
-        _providerApi = config.ApiProvider == "openai"
-            ? new OpenAiApiService(_httpClientService, _configService, _logService)
-            : new ClaudeApiService(_httpClientService, _configService, _logService);
+        _providerApi = config.ApiProvider switch
+        {
+            "openai" => new OpenAiApiService(_httpClientService, _configService, _logService),
+            "github" => new GitHubCopilotApiService(_httpClientService, _configService, _logService),
+            _ => new ClaudeApiService(_httpClientService, _configService, _logService)
+        };
 
         _conversation ??= new ConversationManager();
         _promptBuilder = new PromptBuilder();

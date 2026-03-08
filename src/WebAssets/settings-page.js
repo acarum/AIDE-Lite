@@ -47,34 +47,45 @@
     function updateProviderUI(provider) {
         var apiKeyLabel = document.getElementById('apiKeyLabel');
         var apiKeyInput = document.getElementById('apiKeyInput');
+        var apiKeyHint = document.getElementById('apiKeyHint');
         var modelSelect = document.getElementById('modelSelect');
         var claudeModels = document.getElementById('claudeModels');
         var openaiModels = document.getElementById('openaiModels');
+        var githubModels = document.getElementById('githubModels');
+
+        // Hide all model groups initially
+        claudeModels.style.display = 'none';
+        openaiModels.style.display = 'none';
+        githubModels.style.display = 'none';
 
         if (provider === 'openai') {
             apiKeyLabel.textContent = 'OpenAI API Key';
-            if (apiKeyInput.placeholder === 'sk-ant-api03-...') {
-                apiKeyInput.placeholder = 'sk-...';
-            }
-            // Show only OpenAI models
-            claudeModels.style.display = 'none';
+            apiKeyInput.placeholder = 'sk-...';
+            apiKeyHint.textContent = 'Stored locally with encryption. Never shared.';
             openaiModels.style.display = 'block';
-            // Select first OpenAI model if current is Claude
+            
             var currentModel = modelSelect.value;
-            if (currentModel.startsWith('claude-')) {
+            if (!currentModel.startsWith('gpt-') || currentModel.includes('copilot')) {
                 modelSelect.value = 'gpt-4o';
+            }
+        } else if (provider === 'github') {
+            apiKeyLabel.textContent = 'GitHub Personal Access Token';
+            apiKeyInput.placeholder = 'github_pat_...';
+            apiKeyHint.textContent = 'Uses your existing Copilot license. Token needs "copilot" scope.';
+            githubModels.style.display = 'block';
+            
+            var currentModel = modelSelect.value;
+            if (!currentModel.includes('copilot')) {
+                modelSelect.value = 'gpt-4o-copilot';
             }
         } else {
             apiKeyLabel.textContent = 'Claude API Key';
-            if (apiKeyInput.placeholder === 'sk-...') {
-                apiKeyInput.placeholder = 'sk-ant-api03-...';
-            }
-            // Show only Claude models
+            apiKeyInput.placeholder = 'sk-ant-api03-...';
+            apiKeyHint.textContent = 'Stored locally with encryption. Never shared.';
             claudeModels.style.display = 'block';
-            openaiModels.style.display = 'none';
-            // Select first Claude model if current is OpenAI
+            
             var currentModel = modelSelect.value;
-            if (currentModel.startsWith('gpt-')) {
+            if (!currentModel.startsWith('claude-') || currentModel.includes('copilot')) {
                 modelSelect.value = 'claude-sonnet-4-5-20250929';
             }
         }
