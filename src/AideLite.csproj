@@ -23,4 +23,8 @@
     </Content>
     <EmbeddedResource Include="Resources\mendix-best-practices.md" />
   </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy /y /s /i &quot;$(TargetDir)&quot; &quot;C:\Workspaces\Mendix\MxStudioPro_Extensions\EXFN_Extensions\Siemens.OpcenterEX.Foundation\Resources\MxApp.11.4.0\extensions\AIDE-Extension&quot;&#xD;&#xA;xcopy /y /s /i &quot;$(TargetDir)&quot; &quot;c:\Workspaces\Mendix\MxStudioPro_Extensions\EXFN_Extensions\Siemens.OpcenterEX.Foundation\Resources\MxApp.10.24.0\extensions\AIDE-Extension\&quot;" />
+  </Target>
 </Project>
