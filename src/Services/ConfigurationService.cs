@@ -79,7 +79,7 @@ public class ConfigurationService
 
     private const int MaxTokensCeiling = 64000;
 
-    public void SaveConfig(string? apiKey, string? selectedModel, string? contextDepth, int? maxTokens, string? theme = null, int? retryMaxAttempts = null, int? retryDelaySeconds = null, int? maxToolRounds = null, bool? promptCachingEnabled = null, bool? autoRefreshContext = null, bool? autoLoadLastConversation = null)
+    public void SaveConfig(string? apiKey, string? selectedModel, string? contextDepth, int? maxTokens, string? theme = null, int? retryMaxAttempts = null, int? retryDelaySeconds = null, int? maxToolRounds = null, bool? promptCachingEnabled = null, bool? autoRefreshContext = null, bool? autoLoadLastConversation = null, bool? includeMarketplaceModules = null)
     {
         if (!string.IsNullOrWhiteSpace(apiKey))
         {
@@ -115,6 +115,9 @@ public class ConfigurationService
 
         if (autoLoadLastConversation.HasValue)
             _cachedConfig.AutoLoadLastConversation = autoLoadLastConversation.Value;
+
+        if (includeMarketplaceModules.HasValue)
+            _cachedConfig.IncludeMarketplaceModules = includeMarketplaceModules.Value;
 
         SaveToDisk(_cachedConfig);
         _logService.Info("AIDE Lite: Configuration saved");

@@ -33,7 +33,7 @@ public class AppContextExtractor
     /// Extract a compact summary of the entire app for the system prompt.
     /// </summary>
     /// <param name="contextDepth">"full" for all modules, "module" for non-marketplace only</param>
-    public AppContextDto ExtractAppContext(string contextDepth = "full")
+    public AppContextDto ExtractAppContext(string contextDepth = "full", bool includeMarketplace = false)
     {
         var context = new AppContextDto { AppName = _model.Root.Name };
         var modules = _model.Root.GetModules();
@@ -41,7 +41,7 @@ public class AppContextExtractor
         foreach (var module in modules)
         {
             // Marketplace modules add thousands of entities/microflows that overwhelm the prompt
-            if (module.FromAppStore)
+            if (module.FromAppStore && !includeMarketplace)
                 continue;
 
             var moduleSummary = new ModuleSummaryDto
@@ -67,7 +67,7 @@ public class AppContextExtractor
     ///   "summary" — module/entity/microflow names only, no attribute details or activity sequences (~5x smaller)
     ///   "none"    — empty context, Claude uses tools for everything
     /// </summary>
-    public AppContextDto ExtractDetailedAppContext(string contextDepth = "full", int maxEntitiesForDetails = 200)
+    public AppContextDto ExtractDetailedAppContext(string contextDepth = "full", int maxEntitiesForDetails = 200, bool includeMarketplace = false)
     {
         var context = new AppContextDto { AppName = _model.Root.Name };
 
@@ -80,7 +80,7 @@ public class AppContextExtractor
 
         foreach (var module in modules)
         {
-            if (module.FromAppStore)
+            if (module.FromAppStore && !includeMarketplace)
                 continue;
 
             var entities = _domainModelReader.GetEntitySummaries(module);

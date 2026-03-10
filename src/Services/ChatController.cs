@@ -308,7 +308,7 @@ public class ChatController
                 model, _microflowService, _activitiesService, _expressionService, _domainModelService, transactionManager, _logService);
 
             _toolRegistry = new ToolRegistry();
-            _toolRegistry.Register(new GetModulesTool(_contextExtractor));
+            _toolRegistry.Register(new GetModulesTool(_contextExtractor, _configService));
             _toolRegistry.Register(new GetEntitiesTool(_contextExtractor, domainModelReader));
             _toolRegistry.Register(new GetEntityDetailsTool(_contextExtractor, domainModelReader));
             _toolRegistry.Register(new GetMicroflowsTool(_contextExtractor, microflowReader));
@@ -316,7 +316,7 @@ public class ChatController
             _toolRegistry.Register(new GetAssociationsTool(_contextExtractor, domainModelReader));
             _toolRegistry.Register(new GetEnumerationsTool(_contextExtractor, domainModelReader));
             _toolRegistry.Register(new GetPagesTool(_contextExtractor, pageReader));
-            _toolRegistry.Register(new SearchModelTool(model, _contextExtractor));
+            _toolRegistry.Register(new SearchModelTool(model, _contextExtractor, _configService));
             _toolRegistry.Register(new ValidateOqlQueryTool(_contextExtractor, domainModelReader));
             _toolRegistry.Register(new CreateMicroflowTool(_contextExtractor, microflowGenerator));
             _toolRegistry.Register(new RenameMicroflowTool(_contextExtractor, microflowGenerator));
@@ -755,7 +755,7 @@ public class ChatController
         try
         {
             var config = _configService.GetConfig();
-            _cachedContext = _contextExtractor!.ExtractDetailedAppContext(config.ContextDepth);
+            _cachedContext = _contextExtractor!.ExtractDetailedAppContext(config.ContextDepth, includeMarketplace: config.IncludeMarketplaceModules);
 
             var documentIndex = BuildDocumentIndex();
 
@@ -789,7 +789,8 @@ public class ChatController
             maxToolRounds = config.MaxToolRounds,
             promptCachingEnabled = config.PromptCachingEnabled,
             autoRefreshContext = config.AutoRefreshContext,
-            autoLoadLastConversation = config.AutoLoadLastConversation
+            autoLoadLastConversation = config.AutoLoadLastConversation,
+            includeMarketplaceModules = config.IncludeMarketplaceModules
         });
     }
 
@@ -827,8 +828,11 @@ public class ChatController
         bool? autoLoadLastConversation = null;
         if (data?["autoLoadLastConversation"] != null)
             autoLoadLastConversation = data["autoLoadLastConversation"]!.GetValue<bool>();
+        bool? includeMarketplaceModules = null;
+        if (data?["includeMarketplaceModules"] != null)
+            includeMarketplaceModules = data["includeMarketplaceModules"]!.GetValue<bool>();
 
-        _configService.SaveConfig(apiKey, model, depth, tokens, theme, retryMaxAttempts, retryDelaySeconds, maxToolRounds, promptCachingEnabled, autoRefreshContext, autoLoadLastConversation);
+        _configService.SaveConfig(apiKey, model, depth, tokens, theme, retryMaxAttempts, retryDelaySeconds, maxToolRounds, promptCachingEnabled, autoRefreshContext, autoLoadLastConversation, includeMarketplaceModules);
         SendToWebView("settings_saved", new { success = true });
     }
 
