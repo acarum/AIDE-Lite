@@ -20,6 +20,12 @@ Built for **Mendix Studio Pro 10.24 LTS**. Uses the Claude API by Anthropic.
 - **Grounding rules** — Claude only references entities, attributes, and associations that actually exist in your loaded model. It will not hallucinate names.
 - **Custom project rules** — Place a `.aide-lite-rules.md` file in your Mendix project root to provide project-specific instructions to Claude.
 
+## Pro Version
+
+- Visit [Golden Earth - AIDE Pro](https://goldenearth.io/aide-pro/) to learn more about the pro version.
+- AIDE Pro is a product of [Golden Earth](https://goldenearth.io)
+- Read [AIDE Pro's Documentation from Golden Earth's website](https://goldenearth.io/aide-pro/docs)
+
 ## Prerequisites
 
 - **Mendix Studio Pro 10.24.x** (LTS)
